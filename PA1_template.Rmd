@@ -1,5 +1,5 @@
 ---
-title: "PA!_template2"
+title: "PA1_template1"
 author: "pedro pablo malagon amor"
 date: "Saturday, July 19, 2014"
 output: html_document
