@@ -1,125 +1,148 @@
+---
+title: "PA!_template2"
+author: "pedro pablo malagon amor"
+date: "Saturday, July 19, 2014"
+output: html_document
+---
 # Reproducible Research: Peer Assessment 1
-por pedro pablo malagon amor
-github repo with RMarkdown source code:
-https://github.com/pedropabloma/RepData_PeerAssessment1/
-online rendered version on github pages:
+first assignment for the Reproducible Research course on Coursera. 
+objective  write a report using R markdown that can be processed by knitr package and be transformed into an HTML file. 
 
 
 ## Loading and preprocessing the data
+set the work directory `setwd()`. `raw_data` contains a data frame with the raw data used 
+
+data consists of  two data sets: 
+one for **total number of steps per day** and 
+one for **average of steps per time interval**. 
+Both data sets were generated using the `aggregate` function and were assigned to the objects `avg.daily_data` and `avg.interval_data`, respectively.
+
 ```{r}
-unzip("activity.zip")
-activity <- read.csv("activity.csv")
+## Set work directory
+path_mydir = "C:\\Users\\pedropm\\Documents\\prog1rs\\"
+setwd(path_mydir)
+
+## Load data
+raw_data = read.csv("activity.csv", header=TRUE)
+
+## Dataset: total steps per day
+avg.daily_data        = aggregate(raw_data$steps, by=list(raw_data$date), sum, na.rm=TRUE)
+# Column names
+names(avg.daily_data) = c("date", "total.steps")
+
+## Dataset: average steps per interval
+# Interval as factor
+raw_data$interval        = as.factor(raw_data$interval)
+# Dataset
+avg.interval_data        = aggregate(raw_data$steps, by=list(raw_data$interval), mean, na.rm=TRUE)
+# Column names
+names(avg.interval_data) = c("interval","avg.steps")
 ```
 
 
 ## What is mean total number of steps taken per day?
 
-1. crear un histogram del numero total de pasos de cada dia
+The `avg.daily_data` data set  used to answer. 
+The mean total number of steps taken per day was assigned to the object `total.steps_mean` and the median was assigned to the `total.steps_median`.
 
-```{r}
-steps.date <- aggregate(steps ~ date, data=activity, FUN=sum)
-barplot(steps.date$steps, names.arg=steps.date$date, xlab="date", ylab="steps")
+```{r, fig.width=12}
+## Histogram of the total number of steps taken each day
+hist(avg.daily_data$total.steps, xlab="Total number of steps taken per day", breaks=20, col="lightblue", border="darkgrey", main="")
+
+## Mean and median of the total number of steps taken per day
+total.steps_mean   = mean(avg.daily_data$total.steps)
+total.steps_mean
+total.steps_median = median(avg.daily_data$total.steps)
+total.steps_median
 ```
 
-2. calcular **mean**y and **median** del numero total de pasos por dia 
+The mean total number of steps taken per day is equal to **`r round(total.steps_mean)`**, whereas the median is **`r total.steps_median`**. 
 
-```{r}
-mean(steps.date$steps)
-median(steps.date$steps)
-```
 
 ## What is the average daily activity pattern?
 
-1. Hacer una  time series plot de intervalos de  5-minutos
-    (x-axis) y la average de pasos dados, de media todos los dias (y-axis)
+The `avg.interval_data` data set was used to answer this question. 
 
-```{r}
-steps.interval <- aggregate(steps ~ interval, data=activity, FUN=mean)
-plot(steps.interval, type="l")
+
+```{r, fig.width=21}
+## Time series plot of the 5-minute interval and the average number of steps taken
+# Graph margins
+par(mar=c(6,6,1.5,1.5))
+plot(1:288, avg.interval_data$avg.steps, xlab="Time interval", ylab="Average steps per time interval", xlim=c(0,288), ylim=c(0,max(avg.interval_data$avg.steps)+20), xaxs="i", xaxt="n", type="l", col="deepskyblue", cex=1.5, cex.lab=1.5)
+# Labels
+atlabel = seq(1, 287, by=2)
+clabel  = levels(avg.interval_data$interval)
+clabel  = clabel[atlabel]
+axis(1, at=atlabel, labels=clabel, cex.lab=0.2)
+# Plot line at interval with max avg. step value
+abline(v=which.max(avg.interval_data$avg.steps), col="grey", lty=2)
+
+## Time interval with largest average of steps
+interval_max.steps = avg.interval_data[which.max(avg.interval_data$avg.steps),]
+interval_max.steps
 ```
 
-2. coln el intervalo de  5-minutos, en la media de todos los dias del 
-   dataset, contien el numero maximo de pasos?
-
-```{r}
-steps.interval$interval[which.max(steps.interval$steps)]
-```
-
-
+On average across all the days in the dataset, the 5-minute interval **`r interval_max.steps$interval`** contains the maximum number of steps. 
 
 ## Imputing missing values
 
+The missing values were totalized based on the number of rows from the `raw_data` data set which contained *NA* values in the *steps* column. The *NA* values were firstly filled using the `na.approx()` function from the `{zoo}` package. 
+A new data set was created with *NA* filled, named `raw_data_filled`, which was used to calculate the average total steps per day that was assigned to the object `avg.daily_data_filled`.
 
-1. Calcular el numero total de  missing values en el
-   dataset (i.e. the total number of rows with `NA`s)
+```{r, fig.width=12}
+## Total number of missing values in the raw dataset
+nrow(raw_data[is.na(raw_data$steps)==TRUE,])
 
-```{r}
-sum(is.na(activity))
+## Filling missing values in the raw dataset
+# install.packages("zoo") # if you don't have it installed yet
+library(zoo)
+raw_data_filled       = raw_data
+# Fill dataset using interpolation
+raw_data_filled$steps = na.approx(raw_data_filled$steps, na.rm=FALSE)
+# Intervals that are still missing
+still_na              = raw_data_filled[is.na(raw_data_filled$steps)==TRUE,]
+still_na              = match(still_na$interval, avg.interval_data$interval)
+still_na              = avg.interval_data$avg.steps[still_na]
+# Fill still missing values with average of that interval
+raw_data_filled$steps[is.na(raw_data_filled$steps)==TRUE] = still_na
+
+## Dataset: total steps per day
+avg.daily_data_filled = aggregate(raw_data_filled$steps, by=list(raw_data_filled$date), sum, na.rm=TRUE)
+names(avg.daily_data_filled) = c("date", "total.steps")
+
+## Histogram of the total number of steps taken each day with filled NA dataset
+hist(avg.daily_data_filled$total.steps, xlab="Total number of steps taken per day", breaks=20, col="lightblue", border="darkgrey", main="")
+
+## Mean and median of the total number of steps taken per day with filled NA dataset
+total.steps_mean_filled   = mean(avg.daily_data_filled$total.steps)
+total.steps_mean_filled
+total.steps_median_filled = median(avg.daily_data_filled$total.steps)
+total.steps_median_filled
 ```
 
-2. Devise a strategy for filling in all of the missing values in the
-   dataset. The strategy does not need to be sophisticated. For
-   example, you could use the mean/median for that day, or the mean
-   for that 5-minute interval, etc.
-
-I will use the means for the 5-minute intervals as fillers for missing
-values.
-
-3. Create a new dataset that is equal to the original dataset but with
-   the missing data filled in.
-
-```{r}
-activity <- merge(activity, steps.interval, by="interval", suffixes=c("",".y"))
-nas <- is.na(activity$steps)
-activity$steps[nas] <- activity$steps.y[nas]
-activity <- activity[,c(1:3)]
-```
-
-4. Make a histogram of the total number of steps taken each day and
-   Calculate and report the **mean** and **median** total number of
-   steps taken per day. Do these values differ from the estimates from
-   the first part of the assignment? What is the impact of imputing
-   missing data on the estimates of the total daily number of steps?
-
-```{r}
-steps.date <- aggregate(steps ~ date, data=activity, FUN=sum)
-barplot(steps.date$steps, names.arg=steps.date$date, xlab="date", ylab="steps")
-mean(steps.date$steps)
-median(steps.date$steps)
-```
-
-The impact of the missing data seems rather low, at least when
-estimating the total number of steps per day.
+The missing values totals **`r nrow(raw_data[is.na(raw_data$steps)==TRUE,])`**. The mean total number of steps taken per day with filled gaps is equal to **`r round(total.steps_mean_filled)`**, whereas the median is **`r total.steps_median_filled`**. 
 
 ## Are there differences in activity patterns between weekdays and weekends?
 
-1. Create a new factor variable in the dataset with two levels --
-   "weekday" and "weekend" indicating whether a given date is a
-   weekday or weekend day.
+Higher values of the average steps per time are concentrated during weekdays, when the highest average number of steps per time interval occurs. During weekends, the average steps per time are more even distribuited across time intervals.
 
-```{r, cache=TRUE}
-daytype <- function(date) {
-    if (weekdays(as.Date(date)) %in% c("Saturday", "Sunday")) {
-        "weekend"
-    } else {
-        "weekday"
-    }
-}
-activity$daytype <- as.factor(sapply(activity$date, daytype))
-```
+```{r, fig.width=21}
+## Add Type variable to raw data filled that contains wheather date is weekday or weekend
+raw_data_filled$Type = weekdays(as.Date(raw_data_filled$date))
+raw_data_filled$Type = ifelse(raw_data_filled$Type == "Saturday" | raw_data_filled$Type == "Sunday", "weekend", "weekday")
+raw_data_filled$Type = as.factor(raw_data_filled$Type)
 
-2. Make a panel plot containing a time series plot (i.e. `type = "l"`)
-   of the 5-minute interval (x-axis) and the average number of steps
-   taken, averaged across all weekday days or weekend days
-   (y-axis).
+## Dataset: average steps per interval with filled data
+raw_data_filled$interval        = as.factor(raw_data_filled$interval)
+avg.interval_data_filled        = aggregate(raw_data_filled$steps, by=list(raw_data_filled$interval, raw_data_filled$Type), mean, na.rm=TRUE)
+names(avg.interval_data_filled) = c("interval", "Type", "avg.steps")
 
-```{r}
-par(mfrow=c(2,1))
-for (type in c("weekend", "weekday")) {
-    steps.type <- aggregate(steps ~ interval,
-                            data=activity,
-                            subset=activity$daytype==type,
-                            FUN=mean)
-    plot(steps.type, type="l", main=type)
-}
+## Time series panel plot of 5-minute interval (x-axis) and the average number of steps taken give weekday type
+# Labels
+atlabel = seq(1, 287, by=6)
+clabel  = levels(avg.interval_data$interval)
+clabel  = clabel[atlabel]
+# Plot
+library(lattice)
+xyplot(avg.steps ~ interval | Type, data=avg.interval_data_filled, layout=c(1,2), type="l", ylab="Average steps per time interval", col="deepskyblue", scales=list(x=list(at=atlabel, labels=clabel)))
 ```
