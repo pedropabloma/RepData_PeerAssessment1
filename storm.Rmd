@@ -1,0 +1,238 @@
+---
+title: "storm"
+author: "pedro pablo malagon amor"
+date: "Friday, July 25, 2014"
+output: html_document
+---
+
+# ``` {r setoptions, echo=TRUE}
+# opts_chunk$set(cache = TRUE, ﬁg.width = 8, fig.height=4)
+#```
+
+
+Assessment of Weather Events Damage
+========================================================
+
+
+Synopsis
+-----------
+Here at this report analyses public health and material damage of severe weather events. 
+Storm Data is an official publication of the National Oceanic and Atmospheric Administration (NOAA). 
+It documents the occurrence of storms and other significant weather phenomena having sufficient intensity to cause loss of life, injuries, significant property damage, and/or disruption to commerce. NOAA receives data from Storm Data from the National Weather Service.
+
+
+I have looked into what types of sever weather events cause the most damage. 
+Data distribution is long tailed, with only a handful of events causing most of the damage (both material and non-material).
+One clear outlier is tornados, which cause over 37 percent of total deaths and 65 percent od total injuries. Leading cause of property damage is flood with just under 40 percent, and the leading cause of crop damage is hail (causeing more that 28 percent of the total damage)
+
+
+Data Processing
+-------------------
+
+
+* I have unzipped the data and read csv file in R
+* Consolidated names of weather events describing the same phenomenom (for example, observations called WIND, WINDS, HIGH WINDS, TSTM WIND and all other variations of the term wind were consolidated into variable wind). Same was done for tornado heath, snow and flood.
+* Summed deaths and injuries by the event type and sorted the resulting data frame into the descending order.
+* For property and crop damage I have added 2 variables that show amount of damage in dollars (instead of thousands, millions, billions, etc.). I have disregarderd other values for variales PROPDMGEXP and CROPDMGEXP.
+* I have summed property and crop damage amounts in dollars by the event type and sorted the resulting data frame into the descending order.
+* Removed events that didn't result in deaths, injuries, property or crop damage.
+
+
+### fisrtable i try to load libraries needed
+```{r load_libraries}
+library(plyr)
+library(poweRlaw)
+library(maptools)
+```
+
+
+### lets go to read all data
+```{r read_data,  cache = TRUE}
+fich <- bzfile("repdata_data_StormData.csv.bz2", open = "r")
+data <- read.csv(fich)
+close(fich)
+
+
+## named the weather events
+data$EVTYPE[grep("WIND", data$EVTYPE)] <- "WIND"
+data$EVTYPE[grep("TORNADO", data$EVTYPE)] <- "TORNADO"
+data$EVTYPE[grep("HEAT", data$EVTYPE)] <- "HEAT"
+data$EVTYPE[grep("SNOW", data$EVTYPE)] <- "SNOW"
+data$EVTYPE[grep("FLOOD", data$EVTYPE)] <- "FLOOD"
+
+
+## whats the size of?
+print(object.size(data), units = "Mb")
+```
+
+
+### Death and Injuries
+```{r death_injuries}
+## here i need to sum deaths and injuries clasiffied by the event type
+total_by_event <- ddply(data, .(EVTYPE), summarise, fatalities = sum(FATALITIES), injuries=sum(INJURIES))
+
+
+## now i must sort by deaths and ijuries descending
+sorted <- arrange(total_by_event, desc(fatalities), desc(injuries))
+
+
+## finally ill remove events with NO damage
+remove_no_damage <- sorted[(sorted$fatalities >0 & sorted$injuries > 0), ]
+
+
+```
+
+
+### Material Damage
+```{r material_damage}
+## vars to dollar amount of damage
+Mults <- c(M = 10^6, m = 10^6, K = 10^3, k = 10^3, B = 10^9, b = 10^9)
+data$sumP <- data$PROPDMG * Mults[as.character(data$PROPDMGEX)]
+data$sumP[is.na(data$sumP)] <- 0
+
+
+data$sumC <- data$CROPDMG * Mults[as.character(data$CROPDMGEXP)]
+data$sumC[is.na(data$sumC)] <- 0
+
+
+## i need to sum damage using by event type
+total_by_event2 <- ddply(data, .(EVTYPE), summarise, property = sum(sumP), crops=sum(sumC))
+sorted2 <- arrange(total_by_event2, desc(property), desc(crops))
+
+
+## finally delete  events of NO damage 
+remove_no_damage2 <- sorted2[(sorted2$property >0 & sorted2$crops > 0), ]
+```
+
+
+Results
+------------
+
+
+### Death And Injuries Statistics
+Now you can see from the top 10 events ,  fatalities, vast majority of the damage comes only 
+from a few events (tornado, heat, flood and wind).
+
+
+Also you can see that out of the 570 events, only 65 had any injuries or deaths. 
+Total number of death cases across all causes is 15,047.
+
+
+Out of the events that cause death, top event is tornado that is responsible for 37% of total deaths, and top five events for 83% of total deaths.
+
+
+Statistics for injuries closely follows that for deaths: tornados cause 65% of all injuries and top 5 events cause close to 90% of all the injuries.
+
+
+```{r analysis_people}
+## try to get the Top 10 events by fatalities and injuries
+head(sorted, 10)
+dim(sorted)
+dim(remove_no_damage)
+
+
+## go to the total deaths
+total_deaths <- sum(remove_no_damage$fatalities)
+total_deaths 
+## now with the percentage of deaths caused by tornado
+top_death_percentage <- remove_no_damage$fatalities[1] /total_deaths 
+top_death_percentage
+# now to the percentage of deaths caused by top five events
+top_five_deaths <- sum(remove_no_damage$fatalities[1:5])
+top_five_deaths_percentage <- top_five_deaths /total_deaths 
+top_five_deaths_percentage
+
+
+## let get the total injuries 
+total_injuries <- sum(remove_no_damage$injuries)
+total_injuries
+## now calculate the percentage of injuries caused by tornado
+top_injury_percentage <- remove_no_damage$injuries[1] /total_injuries
+top_injury_percentage
+# and finally the percentage of injuries caused by top five events
+top_five_injuries <- sum(remove_no_damage$injuries[1:5])
+top_five_injury_percentage <- top_five_injuries /total_injuries
+top_five_injury_percentage
+```
+
+
+
+
+### Property and crop damage
+finally you can see that out of the 570 events, the only 56 had any property or crop damage reported. 
+Amnd the total property damage reported is close to  420 billion dollars.
+
+
+Out of the events that did cause property damage, top event (flood) is responsible for about 40% of total damage, and top five events for 84% of total damage.
+
+
+Total crop damage has been just under 50 billion dollars, with top event causing 29% of the total damage, and top 5 events causing 76% of the total damage.
+
+
+```{r analysis_property}
+## Top 10 events by propery and crop damage
+head(sorted2, 10)
+dim(sorted2)
+dim(remove_no_damage2)
+
+
+## total property damage
+total_property_damage <- sum(remove_no_damage2$property)
+total_property_damage
+## percentage of propery damage caused by flood
+top_event_property <- max(remove_no_damage2$property) /total_property_damage
+top_event_property
+# percentage of propery damage caused by top five events
+top_five_property <- sum(remove_no_damage2$property[1:5])
+top_five__property_percentage <- top_five_property /total_property_damage
+top_five__property_percentage
+
+
+## total crop damage
+total_crop_damage <- sum(remove_no_damage2$crops)
+total_crop_damage
+## percentage of crop damage caused by drought
+top_event_crop <- max(remove_no_damage2$crop) /total_crop_damage
+top_event_crop
+# percentage of propery damage caused by top five events
+sort_crop <- arrange(remove_no_damage2, desc(crops))
+top_five_crops <- sum(sort_crop$crops[1:5])
+top_five_crops_percentage <- top_five_crops /total_crop_damage
+top_five_crops_percentage
+```
+
+
+
+
+### Now a graph of  fatalities and injuries dist
+```{r figure1}
+library(maptools)
+par( mfrow = c( 1, 2 ) )
+plot(remove_no_damage$fatalities, col="black", pch=16, ylab="Fatalities")
+pointLabel(x=0, remove_no_damage$fatalities, 
+            ifelse(remove_no_damage$fatalities > 1000, as.character(remove_no_damage$EVTYPE), NA), 
+           allowSmallOverlap = FALSE, cex = .7, pos=4)      
+
+
+plot(remove_no_damage$injuries, col="red", pch=16, ylab="Injuries")
+pointLabel(x=0, remove_no_damage$injuries, 
+            ifelse(remove_no_damage$injuries > 7000, as.character(remove_no_damage$EVTYPE), NA), 
+           allowSmallOverlap = FALSE, cex = .7, pos=4)
+```
+
+
+### finally make a graph with  propery and crop damage distribution
+```{r figure2}
+library(maptools)
+par( mfrow = c( 1, 2 ) )
+plot(remove_no_damage2$property, col="black", pch=16, ylab="Propery Damage")
+pointLabel(x=0, remove_no_damage2$property, 
+            ifelse(remove_no_damage2$property > 1.7e+10, as.character(remove_no_damage2$EVTYPE), NA), 
+           allowSmallOverlap = FALSE, cex = .7, pos=4)
+
+
+plot(sort_crop$crops, col="red", pch=16, ylab="Crop Damage")
+pointLabel(x=0, sort_crop$crops, 
+            ifelse(sort_crop$crops > 2.9e+9, as.character(sort_crop$EVTYPE), NA), 
+           allowSmallOverlap = FALSE, cex = .7, pos=4)
+```
